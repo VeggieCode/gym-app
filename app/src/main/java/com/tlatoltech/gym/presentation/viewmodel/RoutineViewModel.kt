@@ -1,5 +1,7 @@
 package com.tlatoltech.gym.presentation.viewmodel
 
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tlatoltech.gym.domain.usecase.CreateRoutineUseCase
@@ -7,6 +9,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import androidx.work.*
+import com.tlatoltech.gym.framework.worker.RoutineSyncWorker
 import java.util.UUID
 
 // Una clase temporal solo para la UI, para saber qué está escribiendo el usuario
@@ -16,10 +20,11 @@ data class ExerciseFormState(
     val sets: String = "",
     val reps: String = ""
 )
-
+// Cambiamos ViewModel() por AndroidViewModel(application) para tener contexto
 class RoutineViewModel(
+    application: Application,
     private val createRoutineUseCase: CreateRoutineUseCase
-) : ViewModel() {
+) : AndroidViewModel(application) {
 
     private val _formError = MutableStateFlow<String?>(null)
     val formError: StateFlow<String?> = _formError.asStateFlow()
@@ -62,13 +67,32 @@ class RoutineViewModel(
         viewModelScope.launch {
             val result = createRoutineUseCase(name, days, rawExercises)
             result.onSuccess {
+                // Siempre que el usuario cree una rutina, encolamos el Worker de fondo
+                // por si acaso quedó pendiente de sincronizar.
+                scheduleBackgroundSync()
+
                 _formError.value = null
-                // Reiniciamos el formulario
                 _exercisesForm.value = listOf(ExerciseFormState())
                 onSuccess()
             }.onFailure { exception ->
                 _formError.value = exception.message
             }
         }
+    }
+
+    private fun scheduleBackgroundSync() {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val syncWorkRequest = OneTimeWorkRequestBuilder<RoutineSyncWorker>()
+            .setConstraints(constraints)
+            .build()
+
+        WorkManager.getInstance(getApplication()).enqueueUniqueWork(
+            "RoutineSyncWork", // Nombre único para no encolar mil veces
+            ExistingWorkPolicy.REPLACE,
+            syncWorkRequest
+        )
     }
 }

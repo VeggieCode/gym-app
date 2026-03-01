@@ -9,4 +9,6 @@ interface RoutineRepository {
 
     // Recibe una Rutina pura y se encarga de todo el guardado complejo
     suspend fun saveRoutine(routine: Routine): Routine
+
+    suspend fun syncPendingRoutines()
 }

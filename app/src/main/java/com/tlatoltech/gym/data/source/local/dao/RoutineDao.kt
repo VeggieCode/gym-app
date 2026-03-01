@@ -23,4 +23,8 @@ interface RoutineDao {
     // 👇 AGREGA : List<Long> AL FINAL DE ESTA LÍNEA 👇
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExercises(exercises: List<ExerciseEntity>): List<Long>
+
+    @Transaction
+    @Query("SELECT * FROM routines WHERE syncStatus = 'PENDING_CREATE'")
+    suspend fun getPendingRoutines(): List<RoutineWithExercises>
 }

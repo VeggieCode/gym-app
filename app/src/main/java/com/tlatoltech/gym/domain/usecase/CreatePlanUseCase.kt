@@ -4,8 +4,6 @@ import com.tlatoltech.gym.domain.exception.DomainException
 import com.tlatoltech.gym.domain.model.GymPlan
 import com.tlatoltech.gym.domain.repository.GymPlanRepository
 
-// app/src/main/java/com/tugimnasio/app/feature/gymplans/domain/usecase/CreatePlanUseCase.kt
-
 class CreatePlanUseCase(
     private val repository: GymPlanRepository
 ) {

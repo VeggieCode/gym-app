@@ -1,6 +1,9 @@
 package com.tlatoltech.gym.data.repository
 
 import android.util.Log
+import androidx.work.Constraints
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
 import com.tlatoltech.gym.data.mapper.toDomain
 import com.tlatoltech.gym.data.mapper.toDto
 import com.tlatoltech.gym.data.mapper.toLocalEntity
@@ -9,6 +12,7 @@ import com.tlatoltech.gym.data.source.local.entity.ExerciseEntity
 import com.tlatoltech.gym.data.source.remote.GymRoutineApiService
 import com.tlatoltech.gym.domain.model.Routine
 import com.tlatoltech.gym.domain.repository.RoutineRepository
+import com.tlatoltech.gym.framework.worker.RoutineSyncWorker
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -58,10 +62,45 @@ class RoutineRepositoryImpl(
                 return confirmedDomain
             }
         } catch (e: Exception) {
-            Log.e("RoutineSync", "Guardado localmente. Pendiente de enviar a Laravel.", e)
-            // No arrojamos la excepción para no romper la experiencia offline
+            Log.e("RoutineSync", "Offline. Encolando WorkManager para intentar luego.", e)
+
+            // Configuramos las condiciones para el Worker
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED) // ¡Solo si hay internet!
+                .build()
+
+            // Creamos la petición de trabajo de un solo uso
+            val syncWorkRequest = OneTimeWorkRequestBuilder<RoutineSyncWorker>()
+                .setConstraints(constraints)
+                .build()
         }
 
         return routineWithLocalId
+    }
+
+    override suspend fun syncPendingRoutines() {
+        // 1. Buscamos todas las rutinas atascadas en SQLite
+        val pendingRoutines = localDao.getPendingRoutines()
+
+        for (pending in pendingRoutines) {
+            try {
+                val pureDomainRoutine = pending.toDomain()
+
+                // 2. Intentamos enviarlas a Laravel
+                val response = apiService.createRoutine(pureDomainRoutine.toDto())
+
+                if (response.success && response.data != null) {
+                    // 3. Si Laravel responde OK, la marcamos como SYNCED con su ID real
+                    val confirmedDomain = response.data.toDomain()
+                    // Usamos el localId original para sobrescribir y no duplicar
+                    val entityToUpdate = confirmedDomain.toLocalEntity(syncStatus = "SYNCED").copy(localId = pending.routine.localId)
+
+                    localDao.insertRoutine(entityToUpdate)
+                }
+            } catch (e: Exception) {
+                // Si falla, no hacemos nada, la rutina seguirá siendo PENDING_CREATE
+                // para el próximo intento del WorkManager.
+            }
+        }
     }
 }

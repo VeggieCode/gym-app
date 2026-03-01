@@ -1,5 +1,4 @@
-package com.tlatoltech.gym.presentation.viewmodel// app/src/main/java/com/tugimnasio/app/feature/gymplans/presentation/viewmodel/GymPlanViewModel.kt
-
+package com.tlatoltech.gym.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

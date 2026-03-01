@@ -66,6 +66,10 @@ dependencies {
     implementation("androidx.room:room-runtime:$roomVersion")
     implementation("androidx.room:room-ktx:$roomVersion") // Para usar Flow y suspend
     ksp("androidx.room:room-compiler:$roomVersion")
+    // Librería para probar Corrutinas (suspend functions)
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
+    // WorkManager para Kotlin y Corrutinas
+    implementation("androidx.work:work-runtime-ktx:2.11.1")
 }
 
 ksp {
